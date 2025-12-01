@@ -320,7 +320,7 @@ void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* tim_baseHandle)
 
 void setPitch(int val) {
   int new_period;
-  switch (phase) {
+  switch (val) {
     case(0): new_period = 305; break;
     case(1): new_period = 243; break;
     case(2): new_period = 193; break;

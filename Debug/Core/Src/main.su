@@ -1,3 +1,14 @@
-../Core/Src/main.c:64:5:main	8	static
-../Core/Src/main.c:112:6:SystemClock_Config	88	static
-../Core/Src/main.c:168:6:Error_Handler	4	static,ignoring_inline_asm
+../Core/Src/main.c:106:6:resetInput	16	static
+../Core/Src/main.c:111:6:fifo_init	16	static
+../Core/Src/main.c:117:7:fifo_put	16	static
+../Core/Src/main.c:125:7:fifo_get	16	static
+../Core/Src/main.c:132:6:fifo_clear	16	static
+../Core/Src/main.c:138:6:startUartIT	8	static
+../Core/Src/main.c:144:6:HAL_UART_RxCpltCallback	16	static
+../Core/Src/main.c:149:6:HAL_UART_TxCpltCallback	24	static
+../Core/Src/main.c:160:6:stopUartIT	8	static
+../Core/Src/main.c:171:5:main	144	static
+../Core/Src/main.c:272:6:SystemClock_Config	88	static
+../Core/Src/main.c:321:6:txBufferStart	24	static
+../Core/Src/main.c:329:6:processInputChar	16	static
+../Core/Src/main.c:356:6:Error_Handler	4	static

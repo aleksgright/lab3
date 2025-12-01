@@ -39,10 +39,13 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "tim.h"
+#include "usart.h"
+#include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -66,7 +69,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
- UART_HandleTypeDef huart6;
+
+/* USER CODE BEGIN PV */
  char pass[PASS_LENGTH] = "asdfghjk";
 
  uint32_t currentInput = 0;
@@ -85,18 +89,15 @@
  FIFO_Buffer rxBuffer;
  FIFO_Buffer txBuffer;
  uint8_t rxByte;
-
-
-/* USER CODE BEGIN PV */
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-static void MX_GPIO_Init(void);
-static void MX_USART6_UART_Init(void);
 /* USER CODE BEGIN PFP */
-
+// static void MX_GPIO_Init(void);
+// static void MX_USART6_UART_Init(void);
+void txBufferStart(FIFO_Buffer *buf);
+void processInputChar(char c);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -171,7 +172,6 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
 	char in;
-  uint32_t idleStartTime;
   uint32_t timeoutLimit = 2000;
 
 
@@ -195,6 +195,9 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_TIM6_Init();
+  MX_TIM4_Init();
+  MX_TIM1_Init();
   MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
   if(interruptMode) {
@@ -217,7 +220,7 @@ int main(void)
   {
 
 	  static _Bool lastButtonState = 0;
-	  _Bool currentButtonState = isPressed();
+	  _Bool currentButtonState = 1;
 
 	   if (currentButtonState && !lastButtonState) {
 	      interruptMode = !interruptMode;
@@ -250,7 +253,6 @@ int main(void)
 			  HAL_UART_Transmit(&huart6, (uint8_t*)&in, 1, 100);
 			  processInputChar(in);
 		  } else if (status == HAL_TIMEOUT && (currentInput || wrongInputs)) {
-			  toggleLed(YELLOW_LED_ID, 1000);
 			  resetInput(&currentInput, &wrongInputs);
 		  }
 	  }
@@ -261,6 +263,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
   /* USER CODE END 3 */
+
 
 /**
   * @brief System Clock Configuration
@@ -274,16 +277,27 @@ void SystemClock_Config(void)
   /** Configure the main internal regulator output voltage
   */
   __HAL_RCC_PWR_CLK_ENABLE();
-  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 15;
+  RCC_OscInitStruct.PLL.PLLN = 216;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = 4;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Activate the Over-Drive mode
+  */
+  if (HAL_PWREx_EnableOverDrive() != HAL_OK)
   {
     Error_Handler();
   }
@@ -292,81 +306,15 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5) != HAL_OK)
   {
     Error_Handler();
   }
-}
-
-/**
-  * @brief USART6 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_USART6_UART_Init(void)
-{
-
-  /* USER CODE BEGIN USART6_Init 0 */
-
-  /* USER CODE END USART6_Init 0 */
-
-  /* USER CODE BEGIN USART6_Init 1 */
-
-  /* USER CODE END USART6_Init 1 */
-  huart6.Instance = USART6;
-  huart6.Init.BaudRate = 9600;
-  huart6.Init.WordLength = UART_WORDLENGTH_8B;
-  huart6.Init.StopBits = UART_STOPBITS_1;
-  huart6.Init.Parity = UART_PARITY_NONE;
-  huart6.Init.Mode = UART_MODE_TX_RX;
-  huart6.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart6.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart6) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN USART6_Init 2 */
-
-  /* USER CODE END USART6_Init 2 */
-
-}
-
-/**
-  * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_GPIO_Init(void)
-{
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-
-  /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin : PC15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_15;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PD13 PD14 PD15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
-
 }
 
 /* USER CODE BEGIN 4 */
@@ -382,231 +330,23 @@ void processInputChar(char c) {
     if (c >= 'A' && c <= 'Z') {
         c += 'a' - 'A';
     }
-    if (c == '+') {
-    	if (interruptMode) {
-            newStartPasswordChange();
-            return;
-    	}
-        startPasswordChange();
-        return;
-    }
     if (c < 'a' || c > 'z') return;
 
     if (c != pass[currentInput]) {
         wrongInputs++;
         if (wrongInputs == MAX_WRONG_INPUTS) {
-            toggleLed(RED_LED_ID, 2500);
             resetInput(&currentInput, &wrongInputs);
         } else {
-            toggleLed(RED_LED_ID, 250);
         }
     } else {
         if (currentInput == PASS_LENGTH - 1) {
-            toggleLed(GREEN_LED_ID, 2500);
             resetInput(&currentInput, &wrongInputs);
         } else {
             currentInput++;
-            toggleLed(YELLOW_LED_ID, 250);
         }
     }
 }
 
-void startPasswordChange() {
-    char newPass[PASS_LENGTH] = {0};
-    char c;
-    uint32_t index = 0;
-
-    HAL_UART_Transmit(&huart6, (uint8_t*)"\r\nEnter new password:", 22, 100);
-
-    while (1) {
-    	if (interruptMode) {
-    		fifo_get(&rxBuffer, &c);
-    		c = tolower((unsigned char)c);
-			if ((c >= 'a' && c <= 'z') && index < PASS_LENGTH) {
-				newPass[index++] = c;
-				HAL_UART_Transmit(&huart6, (uint8_t*)&c, 1, 100);
-			} else if (c == '\r' || c == '\n' || index == PASS_LENGTH) {
-				break;
-			}
-    	} else {
-			if (HAL_UART_Receive(&huart6, (uint8_t*)&c, 1, 5000) == HAL_OK) {
-				c = tolower((unsigned char)c);
-				if ((c >= 'a' && c <= 'z') && index < PASS_LENGTH) {
-					newPass[index++] = c;
-					HAL_UART_Transmit(&huart6, (uint8_t*)&c, 1, 100);
-				} else if (c == '\r' || c == '\n' || index == PASS_LENGTH) {
-					break;
-				}
-			}
-    	}
-    }
-
-    HAL_UART_Transmit(&huart6, (uint8_t*)"\r\nActivate new password? (y/n)\r\n", 32, 100);
-
-    while (1) {
-    	if (interruptMode) {
-    		fifo_get(&rxBuffer, &c);
-    		c = tolower((unsigned char)c);
-			if (c == 'y') {
-				memcpy(pass, newPass, PASS_LENGTH);
-				HAL_UART_Transmit(&huart6, (uint8_t*)"Password changed.\r\n", 19, 100);
-				break;
-			} else if (c == 'n') {
-				HAL_UART_Transmit(&huart6, (uint8_t*)"Password not changed.\r\n", 25, 100);
-				break;
-			}
-    	} else {
-            if (HAL_UART_Receive(&huart6, (uint8_t*)&c, 1, 5000) == HAL_OK) {
-                c = tolower((unsigned char)c);
-                if (c == 'y') {
-                    memcpy(pass, newPass, PASS_LENGTH);
-                    HAL_UART_Transmit(&huart6, (uint8_t*)"Password changed.\r\n", 19, 100);
-                    break;
-                } else if (c == 'n') {
-                    HAL_UART_Transmit(&huart6, (uint8_t*)"Password not changed.\r\n", 25, 100);
-                    break;
-                }
-            }
-    	}
-    }
-}
-void newStartPasswordChange() {
-    char newPass[PASS_LENGTH] = {0};
-    char c;
-    uint32_t index = 0;
-
-    if (interruptMode) {
-    	char msg[] = "\r\nEnter new password:";
-    	for (size_t i = 0; i < strlen(msg); i++) {
-    		fifo_put(&txBuffer, (uint8_t)msg[i]); // добавляем каждый символ в буфер
-    	}
-    	txBufferStart(&txBuffer);
-//        HAL_UART_Transmit_IT(&huart6, (uint8_t*)"\r\nEnter new password:", 22);
-    } else {
-        HAL_UART_Transmit(&huart6, (uint8_t*)"\r\nEnter new password: ", 22, 100);
-    }
-
-    // Ввод нового пароля
-    while (index < PASS_LENGTH) {
-        _Bool gotChar = 0;
-
-        if (interruptMode) {
-            gotChar = fifo_get(&rxBuffer, (uint8_t*)&c);
-        } else {
-            if (HAL_UART_Receive(&huart6, (uint8_t*)&c, 1, 5000) == HAL_OK) {
-                gotChar = 1;
-            }
-        }
-
-        if (!gotChar) continue; // символа ещё нет
-
-        c = tolower((unsigned char)c);
-
-        if (c >= 'a' && c <= 'z') {
-            newPass[index++] = c;
-            if (interruptMode) {
-            	fifo_put(&txBuffer, (uint8_t)c);
-            	txBufferStart(&txBuffer);
-//                HAL_UART_Transmit_IT(&huart6, (uint8_t*)&c, 1);
-            } else {
-                HAL_UART_Transmit(&huart6, (uint8_t*)&c, 1, 100);
-            }
-        } else if (c == '\r' || c == '\n') {
-            break;
-        }
-    }
-
-    // Подтверждение пароля
-    if (interruptMode) {
-    	char msg[] = "\r\nActivate new password? (y/n)\r\n";
-		for (size_t i = 0; i < strlen(msg); i++) {
-			fifo_put(&txBuffer, (uint8_t)msg[i]);
-		}
-		txBufferStart(&txBuffer);
-//        HAL_UART_Transmit_IT(&huart6, (uint8_t*)"\r\nActivate new password? (y/n)\r\n", 32);
-    } else {
-        HAL_UART_Transmit(&huart6, (uint8_t*)"\r\nActivate new password? (y/n)\r\n", 32, 100);
-    }
-
-    while (1) {
-        _Bool gotChar = 0;
-
-        if (interruptMode) {
-            gotChar = fifo_get(&rxBuffer, (uint8_t*)&c);
-        } else {
-            if (HAL_UART_Receive(&huart6, (uint8_t*)&c, 1, 5000) == HAL_OK) {
-                gotChar = 1;
-            }
-        }
-
-        if (!gotChar) continue;
-
-        c = tolower((unsigned char)c);
-        if (c == 'y') {
-            memcpy(pass, newPass, PASS_LENGTH);
-            if (interruptMode) {
-            	char msg[] = "Password changed.\r\n";
-            	for (size_t i = 0; i < strlen(msg); i++) {
-            		fifo_put(&txBuffer, (uint8_t)msg[i]); // добавляем каждый символ в буфер
-            	}
-            	txBufferStart(&txBuffer);
-//                HAL_UART_Transmit_IT(&huart6, (uint8_t*)"Password changed.\r\n", 19);
-
-            } else {
-                HAL_UART_Transmit(&huart6, (uint8_t*)"Password changed.\r\n", 19, 100);
-            }
-            break;
-        } else if (c == 'n') {
-            if (interruptMode) {
-            	char msg[] = "Password not changed.\r\n";
-            	for (size_t i = 0; i < strlen(msg); i++) {
-            		fifo_put(&txBuffer, (uint8_t)msg[i]); // добавляем каждый символ в буфер
-            	}
-            	txBufferStart(&txBuffer);
-//                HAL_UART_Transmit_IT(&huart6, (uint8_t*)"Password not changed.\r\n", 25);
-            } else {
-                HAL_UART_Transmit(&huart6, (uint8_t*)"Password not changed.\r\n", 25, 100);
-            }
-            break;
-        }
-    }
-}
-
-//void startPasswordChangeIT() {
-//    char newPass[PASS_LENGTH] = {0};
-//    char c;
-//    uint32_t index = 0;
-//
-//    HAL_UART_Transmit_IT(&huart6, (uint8_t*)"\r\nEnter new password:\r\n", 22, 100);
-//
-//    while (1) {
-//        if (HAL_UART_Receive_IT(&huart6, (uint8_t*)&c, 1, 5000) == HAL_OK) {
-//            c = tolower((unsigned char)c);
-//            if ((c >= 'a' && c <= 'z') && index < PASS_LENGTH) {
-//                newPass[index++] = c;
-//                HAL_UART_Transmit_IT(&huart6, (uint8_t*)&c, 1, 100); // эхо
-//            } else if (c == '\r' || c == '\n' || index == PASS_LENGTH) {
-//                break;
-//            }
-//        }
-//    }
-//
-//    HAL_UART_Transmit_IT(&huart6, (uint8_t*)"\r\nActivate new password? (y/n)\r\n", 32, 100);
-//
-//    while (1) {
-//        if (HAL_UART_Receive_IT(&huart6, (uint8_t*)&c, 1, 5000) == HAL_OK) {
-//            c = tolower((unsigned char)c);
-//            if (c == 'y') {
-//                memcpy(pass, newPass, PASS_LENGTH);
-//                HAL_UART_Transmit_IT(&huart6, (uint8_t*)"Password changed.\r\n", 19, 100);
-//                break;
-//            } else if (c == 'n') {
-//                HAL_UART_Transmit_IT(&huart6, (uint8_t*)"Password not changed.\r\n", 25, 100);
-//                break;
-//            }
-//        }
-//    }
-//}
 /* USER CODE END 4 */
 
 /**
