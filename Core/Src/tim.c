@@ -350,7 +350,7 @@ void setLedBrightness(int led, int val) {
     default:break;
   }
   
-  switch (val)
+  switch (led)
   {
     case (0): 
       htim4.Instance->CCR2 = pulse;
@@ -369,7 +369,6 @@ void setLedBrightness(int led, int val) {
       break;
     default:break;
   }
-	htim4.Instance->CCR2 = pulse;
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
