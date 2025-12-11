@@ -66,16 +66,18 @@
 #define YELLOW_LED_ID 14
 #define RED_LED_ID 15
 #define BUFFER_SIZE 64
+#define ENTER_ASCII_CODE 13
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
- char pass[PASS_LENGTH] = "asdfghjk";
+ char sequence[9] = "123456789";
+ int res[20] = {0};
+ int currentInput = 0;
+ _Bool gameLive;
 
- uint32_t currentInput = 0;
- uint32_t wrongInputs = 0;
-
+ _Bool pollingTime = 0;
  _Bool interruptMode = 0;
  _Bool txBusy = 0;
 
@@ -94,6 +96,9 @@
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
+void printRes();
+void startGame();
+void stopGame();
 // static void MX_GPIO_Init(void);
 // static void MX_USART6_UART_Init(void);
 void txBufferStart(FIFO_Buffer *buf);
@@ -200,6 +205,37 @@ int main(void)
   MX_TIM1_Init();
   MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
+  HAL_TIM_Base_Stop(&htim6);
+  HAL_TIM_Base_Start_IT(&htim6);
+  startUartIT();
+
+  char msg[] = "\r\Hello\r\n";
+  for (size_t i = 0; i < strlen(msg); i++) {
+      fifo_put(&txBuffer, msg[i]);
+  }
+  txBufferStart(&txBuffer);
+
+  while (1) {
+    
+    uint8_t c;
+    if (fifo_get(&rxBuffer, &c)) {
+      processInputChar(c);
+    }
+    
+
+
+
+  }
+
+
+
+
+
+
+
+
+
+  /////////////////////////////////////
   if(interruptMode) {
       char msg[] = "Interrupt mode ON\r\n";
       for (size_t i = 0; i < strlen(msg); i++) {
@@ -252,9 +288,7 @@ int main(void)
 		  if (status == HAL_OK) {
 			  HAL_UART_Transmit(&huart6, (uint8_t*)&in, 1, 100);
 			  processInputChar(in);
-		  } else if (status == HAL_TIMEOUT && (currentInput || wrongInputs)) {
-			  resetInput(&currentInput, &wrongInputs);
-		  }
+		  } 
 	  }
   }
     /* USER CODE END WHILE */
@@ -317,32 +351,69 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void processInputChar(char c) {
+    if (c == 'a') {
+      switchMode();
+    }
+    if (c == '+') {
+    	increase_sound_length();
+    }
+    if (c == ENTER_ASCII_CODE) {
+      if (gameLive) {
+        stopGame();
+      } else {
+        startGame();
+      }
+    }
+
+    if (c >= '1' && c <= '9') {
+      if (gameLive) {
+        res[currentInput] = (c == sequence[currentInput%9]) ? 2 : 1;
+      } else {
+        playSound(c - '0');
+      }
+    } 
+}
+
+void startGame() {
+  HAL_Delay(2500);
+  memset(res, 0, sizeof(res));
+  currentInput = 0;
+  initCnt(&currentInput);
+  __HAL_TIM_SET_COUNTER(&htim6, 0);
+  HAL_TIM_Base_Start(&htim6); 
+}
+
+void stopGame() {
+  HAL_TIM_Base_Stop(&htim6);
+  printRes();
+}
+
+void printRes() {
+  char msg[] = "Your result: ";
+  for (size_t i = 0; i < strlen(msg); i++) {
+    fifo_put(&txBuffer, msg[i]);
+  }
+  for (size_t i = 0; i < 20; i++) {
+    switch (res[i])
+    {
+      case (2): fifo_put(&txBuffer, '+'); fifo_put(&txBuffer, ' '); break;
+      case (1): fifo_put(&txBuffer, '-'); fifo_put(&txBuffer, ' '); break;
+      case (0): break;
+      default:break;
+    }
+    fifo_put(&txBuffer, '\n');  
+  }
+  txBufferStart(&txBuffer);
+
+}
+
+
 void txBufferStart(FIFO_Buffer *buf) {
     uint8_t c;
     if(!txBusy && fifo_get(buf, &c)) {
         txBusy = 1;
         HAL_UART_Transmit_IT(&huart6, &c, 1);
-    }
-}
-
-void processInputChar(char c) {
-    if (c >= 'A' && c <= 'Z') {
-        c += 'a' - 'A';
-    }
-    if (c < 'a' || c > 'z') return;
-
-    if (c != pass[currentInput]) {
-        wrongInputs++;
-        if (wrongInputs == MAX_WRONG_INPUTS) {
-            resetInput(&currentInput, &wrongInputs);
-        } else {
-        }
-    } else {
-        if (currentInput == PASS_LENGTH - 1) {
-            resetInput(&currentInput, &wrongInputs);
-        } else {
-            currentInput++;
-        }
     }
 }
 

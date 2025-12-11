@@ -318,7 +318,15 @@ void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* tim_baseHandle)
 
 /* USER CODE BEGIN 1 */
 
+_Bool soundEnabled = 1;
+_Bool ledEnabled = 1;
+int* cnt_ptr;
+
 void setPitch(int val) {
+  if (!soundEnabled) {
+    htim1.Instance->CCR1 = 0;
+    return;
+  }
   int new_period;
   switch (val) {
     case(0): new_period = 305; break;
@@ -340,14 +348,16 @@ void setPitch(int val) {
 // val = 2 - 100%
 void setLedBrightness(int led, int val) {
   int pulse = 0;
-  
-  setPitch(led*3 + val);
   switch (val)
   {
     case (0): pulse = 40; break;
     case (1): pulse = 100; break;
     case (2): pulse = 200; break;
     default:break;
+  }
+
+  if (!ledEnabled) {
+    pulse = 0;
   }
   
   switch (led)
@@ -371,13 +381,59 @@ void setLedBrightness(int led, int val) {
   }
 }
 
+
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-	static int phase = 0;
 
 	if (htim->Instance==TIM6) {
-		phase++;
-		if (phase > 8) phase = 0;
-		setLedBrightness(phase/3, phase%3);
+		*cnt_ptr++;
+		setLedBrightness(*cnt_ptr/3, *cnt_ptr%3);
 	}
+}
+
+void increase_sound_length() {
+  if (htim6.Instance->ARR == 15000) {
+	  htim6.Instance->ARR = 5000;
+  } else {
+	  htim6.Instance->ARR = htim6.Instance->ARR + 5000;
+  }
+}
+
+void switchMode() {
+  static int mode = 0;
+  mode++;
+
+  switch (mode % 3)
+  {
+    case (0): 
+      ledEnabled = 1;
+      soundEnabled = 1;
+      break;
+    case (1):
+      ledEnabled = 0;
+      soundEnabled = 1;
+      break;
+    case (2):
+      ledEnabled = 1;
+      soundEnabled = 0;
+      break;
+    default:break;
+  }
+}
+
+void playSound(int value) {
+  ledEnabled = 1;
+  soundEnabled = 1;
+  setPitch(value);
+  setLedBrightness(value%3, value);
+
+  ledEnabled = 0;
+  soundEnabled = 0;
+  setPitch(value);
+  setLedBrightness(value%3, value);
+}
+
+void initCnt(int* ptr) {
+  cnt_ptr = ptr;
 }
 /* USER CODE END 1 */

@@ -49,7 +49,10 @@ void MX_TIM6_Init(void);
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 /* USER CODE BEGIN Prototypes */
-
+void switchMode();
+void increase_sound_length();
+void playSound(int value);
+void initCnt(int* ptr);
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus
